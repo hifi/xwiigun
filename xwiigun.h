@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <xwiimote.h>
+#include <poll.h>
 
 enum {
     SIDE_INVALID   = -1,
@@ -53,6 +54,8 @@ struct xwiigun
 
     // xwiimote state
     struct {
+        struct pollfd fds[2];
+        struct xwii_monitor *monitor;
         struct xwii_iface *iface;
     } xwii;
 };

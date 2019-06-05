@@ -1,7 +1,5 @@
 #include <string.h>
 #include <stdio.h>
-#include <poll.h>
-#include <errno.h>
 
 #include "xwiigun.h"
 
@@ -128,17 +126,10 @@ static void render()
 
 int main(int argc, char **argv)
 {
-    struct pollfd fds[1];
-
-    memset(&fds, 0, sizeof(fds));
-
     if (xwiigun_open(&gun)) {
         printf("No gun :(\n");
         return 1;
     }
-
-    fds[0].fd = xwii_iface_get_fd(gun.xwii.iface);
-    fds[0].events = POLLIN;
 
     SDL_Init(SDL_INIT_VIDEO);
 
@@ -148,19 +139,11 @@ int main(int argc, char **argv)
 
     SDL_SetWindowBordered(win, false);
 
-    while (!xwiigun_poll(&gun)) {
-        int ret;
+    gun.blocking = true;
 
+    while (!xwiigun_poll(&gun)) {
         //printf("cal: %s, off: %s, hpos: %1.3f, vpos: %1.3f, ar: %1.3f\n", gun.calibrated ? "ok" : "??", gun.offscreen ? "yes" : "no ", gun.hpos, gun.vpos, gun.ar);
         render(&gun);
-
-        if ((ret = poll(fds, 1, -1)) < 0) {
-            if (ret == -EAGAIN)
-                return 0;
-
-            perror("poll() failed");
-            return 1;
-        }
     }
 
     xwiigun_close(&gun);

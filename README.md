@@ -68,7 +68,6 @@ Latency seems good enough for rail shooters, accuracy as well.
 - Allow manual screen bezel adjustment to improve edge accuracy
 - Remember the last four point calibration offline so the gun would have a
   reference immediately when starting up
-- Wii remote hotplugging
 - Two player mode
 - Pillarboxing adjustment in 16:9 (emulator driver side)
 

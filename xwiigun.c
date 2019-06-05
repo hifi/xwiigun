@@ -350,25 +350,55 @@ static void handle_ir(struct xwiigun *gun, struct xwii_event *e)
     gun->offscreen = (gun->hpos < 0 || gun->vpos < 0 || gun->hpos > 1 || gun->vpos > 1);
 }
 
+static void xwiigun_close_device(struct xwiigun *gun)
+{
+    if (gun->xwii.iface) {
+        xwii_iface_unref(gun->xwii.iface);
+        gun->xwii.iface = NULL;
+        gun->xwii.fds[1].fd = -1;
+        gun->xwii.fds[1].events = 0;
+    }
+}
+
+static void xwiigun_try_open_ifaces(struct xwiigun *gun)
+{
+    xwii_iface_open(gun->xwii.iface, XWII_IFACE_CORE | XWII_IFACE_IR | XWII_IFACE_WRITABLE);
+}
+
+static void xwiigun_try_open_device(struct xwiigun *gun, char *path)
+{
+    if (gun->xwii.iface) {
+        fprintf(stderr, "xwiigun: Ignoring surplus Wii remote at %s\n", path);
+        return;
+    }
+
+    if (xwii_iface_new(&gun->xwii.iface, path)) {
+        perror("xwii_iface_new() failed");
+        return;
+    }
+
+    xwii_iface_watch(gun->xwii.iface, true);
+    gun->xwii.fds[1].fd = xwii_iface_get_fd(gun->xwii.iface);
+    gun->xwii.fds[1].events = POLLIN;
+
+    fprintf(stderr, "xwiigun: Opened Wii remote at %s\n", path);
+
+    xwiigun_try_open_ifaces(gun);
+}
+
 int xwiigun_open(struct xwiigun *gun)
 {
-    int ret = -1;
-    struct xwii_monitor *mon = NULL;
-    char *path = NULL;
+    char *path;
+    memset(gun, 0, sizeof(*gun));
 
-    mon = xwii_monitor_new(false, false);
-    path = xwii_monitor_poll(mon);
+    gun->xwii.monitor = xwii_monitor_new(true, false);
 
-    if (!path)
-        goto error;
+    while ((path = xwii_monitor_poll(gun->xwii.monitor)) != NULL) {
+        xwiigun_try_open_device(gun, path);
+    }
 
-    if (xwii_iface_new(&gun->xwii.iface, path))
-        goto error;
-
-    if (xwii_iface_open(gun->xwii.iface, XWII_IFACE_CORE | XWII_IFACE_IR | XWII_IFACE_WRITABLE))
-        goto error;
-
-    ret = 0;
+    gun->xwii.fds[0].fd = xwii_monitor_get_fd(gun->xwii.monitor, false);
+    gun->xwii.fds[0].events = POLLIN;
 
     reset_ir(gun->ir.prev);
     reset_ir(gun->ir.now);
@@ -377,30 +407,56 @@ int xwiigun_open(struct xwiigun *gun)
     // caller can adjust this later on for calibration purposes
     gun->center.x = 512;
     gun->center.y = 384;
-    gun->center.z = 0;
 
-error:
-    if (mon)
-        xwii_monitor_unref(mon);
-    if (path)
-        free(path);
-
-    return ret;
+    return gun->xwii.monitor ? 0 : -1;
 }
 
 int xwiigun_poll(struct xwiigun *gun)
 {
-    struct xwii_event e;
+    int ret;
+
+    if ((ret = poll(gun->xwii.fds, gun->xwii.iface ? 2 : 1, gun->blocking ? -1 : 0)) < 0) {
+        if (ret == -EAGAIN)
+            return 0;
+
+        perror("xwiigun: poll() failed");
+        return 1;
+    }
+
+    if (ret == 0)
+        return 0;
+
+    if (gun->xwii.fds[0].revents == POLLIN) {
+        char *path = xwii_monitor_poll(gun->xwii.monitor);
+        if (path) {
+            xwiigun_try_open_device(gun, path);
+            free(path);
+        }
+    } else if (gun->xwii.fds[0].revents != 0) {
+        fprintf(stderr, "xwiigun: Monitor poll failed, bailing\n");
+        return 1;
+    }
+
+    if (!gun->xwii.iface)
+        return 0;
+
+    if (gun->xwii.fds[1].revents != POLLIN && gun->xwii.fds[1].revents != 0) {
+        fprintf(stderr, "xwiigun: Device poll failed, dropping device\n");
+        xwiigun_close_device(gun);
+        return 0;
+    }
 
     while (true)
     {
-        int ret;
+        struct xwii_event e;
 
         if ((ret = xwii_iface_dispatch(gun->xwii.iface, &e, sizeof(e)))) {
             if (ret == -EAGAIN)
                 return 0;
 
-            return ret;
+            fprintf(stderr, "xwiigun: Device dispatch failed, dropping device\n");
+            xwiigun_close_device(gun);
+            return 0;
         }
 
         switch (e.type) {
@@ -420,15 +476,37 @@ int xwiigun_poll(struct xwiigun *gun)
                 break;
             }
 
-            default: break;
+            case XWII_EVENT_WATCH:
+            {
+                if (xwii_iface_available(gun->xwii.iface) == 0) {
+                    fprintf(stderr, "xwiigun: Device disconnected (no interfaces available)\n");
+                    xwiigun_close_device(gun);
+                    return 0;
+                } else {
+                    xwiigun_try_open_ifaces(gun);
+                }
+                break;
+            }
+
+            default:
+            {
+                fprintf(stderr, "xwiigun: Unhandled event type: %d\n", e.type);
+                break;
+            }
         }
     }
+
+    return 0;
 }
 
 int xwiigun_close(struct xwiigun *gun)
 {
+    if (gun->xwii.monitor) {
+        xwii_monitor_unref(gun->xwii.monitor);
+        gun->xwii.monitor = NULL;
+    }
+
     if (gun->xwii.iface) {
-        xwii_iface_close(gun->xwii.iface, XWII_IFACE_ALL);
         xwii_iface_unref(gun->xwii.iface);
         gun->xwii.iface = NULL;
     }
