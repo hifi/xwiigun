@@ -12,6 +12,12 @@ enum {
 
 struct xwiigun
 {
+    // if polling should block or not, defaults to false
+    bool blocking;
+
+    // rumble when trigger is pressed
+    bool trigger_rumble;
+
     // relative cursor position [0.0f - 1.0f]
     double hpos, vpos;
 

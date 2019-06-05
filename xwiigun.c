@@ -121,7 +121,6 @@ static void handle_ir(struct xwiigun *gun, struct xwii_event *e)
 
         // check if tracking is possible
         if (tracking_dist < MAX_TRACKING_DISTANCE) {
-            printf("point %d tracking distance to side %d is %.2f\n", i, tracking_side, tracking_dist);
             p->z = tracking_side;
             ntracking++;
         }
@@ -130,14 +129,12 @@ static void handle_ir(struct xwiigun *gun, struct xwii_event *e)
 
     // if we track all visible points we keep the state
     if (ntracking == npoints) {
-        printf("tracking all %d points\n", ntracking);
         for (int i = 0; i < npoints; i++) {
             memcpy(&gun->ir.now[points[i].z], &points[i], sizeof(gun->ir.now[0]));
         }
     }
     // if we see two points, guess where they are
     else if (npoints == 2) {
-        printf("guessing orientation from two points\n");
         const static struct xwii_event_abs corners[4] = {
             { 0,    0,   0 }, // top left
             { 1024, 0,   0 }, // top right 
@@ -205,8 +202,6 @@ static void handle_ir(struct xwiigun *gun, struct xwii_event *e)
         // find hypotenuse and its orientation, rest will come
         int angle = -1;
         int apoints[4];
-
-        printf("calculating triangle from three points\n");
 
         // find a line that's closest to being 180 or 90 degrees
         for (int i = 0; i < 3; i++) {
@@ -310,8 +305,6 @@ static void handle_ir(struct xwiigun *gun, struct xwii_event *e)
         }
 
         // adjust calibrated quad for current scale based on known points
-        printf("calculating scale between sides %d and %d\n", pside[0], pside[1]);
-        printf("%dx%d / %dx%d\n", gun->ir.now[pside[0]].x, gun->ir.now[pside[1]].y, gun->ir.cal[pside[0]].x, gun->ir.cal[pside[1]].y);
         double scale = distance(&gun->ir.now[pside[0]], &gun->ir.now[pside[1]]) / distance(&gun->ir.cal[pside[0]], &gun->ir.cal[pside[1]]);
         for (int i = 0; i < 4; i++) {
             gun->ir.adj[i].x = gun->ir.cal[i].x * scale;
@@ -414,8 +407,10 @@ int xwiigun_poll(struct xwiigun *gun)
             case XWII_EVENT_KEY:
             {
                 gun->keys[e.v.key.code] = e.v.key.state;
-                if (e.v.key.code == XWII_KEY_B)
+
+                if (gun->trigger_rumble && e.v.key.code == XWII_KEY_B)
                     xwii_iface_rumble(gun->xwii.iface, e.v.key.state);
+
                 break;
             }
 
