@@ -1,7 +1,7 @@
 all: xwiigun-mouse xwiigun-test libxwiigun.so
 
 xwiigun-mouse: mouse.c xwiigun.c
-	gcc -std=c99 -g3 -pedantic -Wall -o xwiigun-mouse mouse.c xwiigun.c -lxwiimote -lm -lX11 -lXtst -lXext -lXrandr
+	gcc -std=c99 -g3 -pedantic -Wall -o xwiigun-mouse mouse.c xwiigun.c -lxwiimote -lm
 
 xwiigun-test: test.c xwiigun.c
 	gcc -std=c99 -g3 -pedantic -Wall -o xwiigun-test test.c xwiigun.c -lxwiimote `sdl2-config --cflags --libs` -lSDL2_gfx -lm
