@@ -52,6 +52,9 @@ struct xwiigun
         struct xwii_event_abs adj[4];
     } ir;
 
+    // current acceleration data
+    struct xwii_event_abs accel;
+
     // xwiimote state
     struct {
         struct pollfd fds[2];

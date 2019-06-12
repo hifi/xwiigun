@@ -7,6 +7,12 @@
 #include "xwiigun.h"
 
 #define MAX_TRACKING_DISTANCE 50.0f
+
+// manual adjustment based on single Wii remote, needs to be configurable
+#define ACCEL_CORR 20
+#define ACCEL_IMPACT 0.7f
+#define ACCEL_SMOOTH 0.5f
+
 #define M_PI 3.1415926535f
 
 static void reset_ir(struct xwii_event_abs ir[4])
@@ -99,6 +105,11 @@ static void handle_ir(struct xwiigun *gun, struct xwii_event *e)
     // we need two points
     if (npoints < 2)
         return;
+
+    // adjust tilt with accelerometer data
+    for (int i = 0; i < npoints; i++) {
+        rotate(&gun->center, ((gun->accel.x + ACCEL_CORR) * M_PI / 180) * ACCEL_IMPACT, &points[i]);
+    }
 
     // setup tracking of visible points
     for (int i = 0; i < npoints; i++) {
@@ -362,7 +373,7 @@ static void xwiigun_close_device(struct xwiigun *gun)
 
 static void xwiigun_try_open_ifaces(struct xwiigun *gun)
 {
-    xwii_iface_open(gun->xwii.iface, XWII_IFACE_CORE | XWII_IFACE_IR | XWII_IFACE_WRITABLE);
+    xwii_iface_open(gun->xwii.iface, XWII_IFACE_CORE | XWII_IFACE_IR | XWII_IFACE_ACCEL | XWII_IFACE_WRITABLE);
 }
 
 static void xwiigun_try_open_device(struct xwiigun *gun, char *path)
@@ -473,6 +484,18 @@ int xwiigun_poll(struct xwiigun *gun)
             case XWII_EVENT_IR:
             {
                 handle_ir(gun, &e);
+                break;
+            }
+
+            case XWII_EVENT_ACCEL:
+            {
+                if (gun->accel.x == 0 && gun->accel.y == 0 && gun->accel.z == 0) {
+                    memcpy(&gun->accel, &e.v.abs[0], sizeof(gun->accel));
+                } else {
+                    gun->accel.x += (e.v.abs[0].x - gun->accel.x) * ACCEL_SMOOTH;
+                    gun->accel.y += (e.v.abs[0].y - gun->accel.y) * ACCEL_SMOOTH;
+                    gun->accel.z += (e.v.abs[0].z - gun->accel.z) * ACCEL_SMOOTH;
+                }
                 break;
             }
 
