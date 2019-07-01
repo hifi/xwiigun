@@ -85,7 +85,7 @@ int main(int argc, char **argv)
     /* Try to open a uinput device and respond accordingly */
     if ((fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK)) < 0) {
         perror("open");
-        printf("Try running the application using sudo so it has access to /dev/uinput\n");
+        printf("No access to /dev/uinput. ! DO NOT USE SUDO ! See Readme.md\n");
         return 1;
     }
 
