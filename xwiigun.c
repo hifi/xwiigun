@@ -244,8 +244,7 @@ static void handle_ir(struct xwiigun *gun, struct xwii_event *e)
 
         // determine if remaining point is on the left or right
         if (angle == 90 || angle == 270) {
-            // XXX: this is wrong
-            if (points[apoints[2]].x < 512) {
+            if (points[apoints[2]].x < gun->ir.now[SIDE_TOP].x || points[apoints[2]].x < gun->ir.now[SIDE_BOTTOM].x) {
                 memcpy(&gun->ir.now[SIDE_LEFT], &points[apoints[2]], sizeof(gun->ir.now[0]));
             } else {
                 memcpy(&gun->ir.now[SIDE_RIGHT], &points[apoints[2]], sizeof(gun->ir.now[0]));
@@ -263,8 +262,7 @@ static void handle_ir(struct xwiigun *gun, struct xwii_event *e)
 
         // determine if remaining point is on the top or bottom
         if (angle == 0 || angle == 180) {
-            // XXX: this is wrong
-            if (points[apoints[2]].y < 384) {
+            if (points[apoints[2]].y < gun->ir.now[SIDE_LEFT].y || points[apoints[2]].y < gun->ir.now[SIDE_RIGHT].y) {
                 memcpy(&gun->ir.now[SIDE_TOP], &points[apoints[2]], sizeof(gun->ir.now[0]));
             } else {
                 memcpy(&gun->ir.now[SIDE_BOTTOM], &points[apoints[2]], sizeof(gun->ir.now[0]));
